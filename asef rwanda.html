@@ -1,0 +1,228 @@
+<?php
+session_start();
+if(!isset($_SESSION['user'])){
+  header("Location: index.html");
+  exit;
+}
+?>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ASEF Rwanda Dashboard</title>
+  <style>
+    body{
+      font-family:Arial, sans-serif;
+      margin:0;
+      padding:20px;
+      background:#f8fafc;
+    }
+    header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:20px;
+    }
+    h2{color:#0a66c2;}
+    button{
+      background:#0a66c2;
+      color:#fff;
+      border:none;
+      padding:8px 12px;
+      border-radius:5px;
+      cursor:pointer;
+    }
+    input, select, textarea{
+      width:100%;
+      padding:8px;
+      margin:8px 0;
+      border:1px solid #ccc;
+      border-radius:5px;
+    }
+    form{
+      background:#fff;
+      padding:15px;
+      border-radius:10px;
+      box-shadow:0 0 5px rgba(0,0,0,0.1);
+      margin-bottom:20px;
+      width:350px;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      background:#fff;
+      border-radius:10px;
+      box-shadow:0 0 5px rgba(0,0,0,0.1);
+    }
+    th, td{
+      padding:10px;
+      border-bottom:1px solid #eee;
+      text-align:left;
+    }
+    th{
+      background:#0a66c2;
+      color:white;
+    }
+    tr:hover{background:#f1f5f9;}
+    .edit-form{
+      background:#fff3cd;
+      padding:15px;
+      border:1px solid #ffecb5;
+      border-radius:10px;
+      margin-top:15px;
+      display:none;
+      width:350px;
+    }
+    #searchBox{
+      padding:10px;
+      width:300px;
+      border:1px solid #aaa;
+      border-radius:5px;
+      margin-bottom:15px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h2>ASEF Rwanda - Student Dashboard</h2>
+    <a href="logout.php"><button>Logout</button></a>
+  </header>
+
+  <h3>Add New Student</h3>
+  <form id="studentForm" onsubmit="addStudent(event)">
+    <input type="text" id="fullName" placeholder="Full Name" required>
+    <input type="text" id="year" placeholder="Year of Study (e.g., S5)" required>
+    <input type="text" id="combination" placeholder="Combination (e.g., PCB, MCE)" required>
+    <textarea id="bilote" placeholder="Bilote (optional)"></textarea>
+    <button type="submit">Add Student</button>
+    <p id="msg" style="color:green;"></p>
+  </form>
+
+  <div class="edit-form" id="editForm">
+    <h3>Edit Student</h3>
+    <input type="hidden" id="editId">
+    <input type="text" id="editFullName" required>
+    <input type="text" id="editYear" required>
+    <input type="text" id="editCombination" required>
+    <textarea id="editBilote"></textarea>
+    <button onclick="updateStudent()">Update</button>
+    <button style="background:red" onclick="cancelEdit()">Cancel</button>
+    <p id="editMsg" style="color:green;"></p>
+  </div>
+
+  <h3>Student List</h3>
+  <input type="text" id="searchBox" placeholder="Search by name, year, or combination..." onkeyup="searchStudents()">
+  <div id="students"></div>
+
+  <script>
+  let allStudents = [];
+
+  function loadStudents(){
+    fetch('api.php')
+      .then(r=>r.json())
+      .then(data=>{
+        allStudents = data;
+        renderTable(allStudents);
+      });
+  }
+
+  function renderTable(data){
+    document.getElementById('students').innerHTML =
+      '<table><tr><th>ID</th><th>Name</th><th>Year</th><th>Combination</th><th>Bilote</th><th>Action</th></tr>' +
+      data.map(s=>`
+        <tr>
+          <td>${s.id}</td>
+          <td>${s.fullName}</td>
+          <td>${s.year_level}</td>
+          <td>${s.combination}</td>
+          <td>${s.bilote||''}</td>
+          <td>
+            <button onclick="editStudent(${s.id}, '${s.fullName}', '${s.year_level}', '${s.combination}', '${s.bilote||''}')">Edit</button>
+            <button style='background:red' onclick="deleteStudent(${s.id})">Delete</button>
+          </td>
+        </tr>`).join('') +
+      '</table>';
+  }
+
+  function searchStudents(){
+    const term = document.getElementById('searchBox').value.toLowerCase();
+    const filtered = allStudents.filter(s =>
+      s.fullName.toLowerCase().includes(term) ||
+      s.year_level.toLowerCase().includes(term) ||
+      s.combination.toLowerCase().includes(term)
+    );
+    renderTable(filtered);
+  }
+
+  function addStudent(e){
+    e.preventDefault();
+    let data = {
+      fullName: document.getElementById('fullName').value,
+      year: document.getElementById('year').value,
+      combination: document.getElementById('combination').value,
+      bilote: document.getElementById('bilote').value
+    };
+    fetch('api.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    })
+    .then(r=>r.json())
+    .then(d=>{
+      document.getElementById('msg').textContent = "Student added successfully!";
+      document.getElementById('studentForm').reset();
+      loadStudents();
+      setTimeout(()=>document.getElementById('msg').textContent='',3000);
+    });
+  }
+
+  function editStudent(id, name, year, combo, bilote){
+    document.getElementById('editForm').style.display = 'block';
+    document.getElementById('editId').value = id;
+    document.getElementById('editFullName').value = name;
+    document.getElementById('editYear').value = year;
+    document.getElementById('editCombination').value = combo;
+    document.getElementById('editBilote').value = bilote;
+    window.scrollTo(0,0);
+  }
+
+  function cancelEdit(){
+    document.getElementById('editForm').style.display = 'none';
+  }
+
+  function updateStudent(){
+    let data = {
+      id: document.getElementById('editId').value,
+      fullName: document.getElementById('editFullName').value,
+      year: document.getElementById('editYear').value,
+      combination: document.getElementById('editCombination').value,
+      bilote: document.getElementById('editBilote').value
+    };
+    fetch('api.php', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    })
+    .then(r=>r.json())
+    .then(d=>{
+      document.getElementById('editMsg').textContent = "Student updated successfully!";
+      loadStudents();
+      setTimeout(()=>{
+        document.getElementById('editMsg').textContent='';
+        cancelEdit();
+      },2000);
+    });
+  }
+
+  function deleteStudent(id){
+    if(confirm("Are you sure to delete this student?")){
+      fetch('api.php?id='+id, {method:'DELETE'})
+      .then(r=>r.json())
+      .then(d=>loadStudents());
+    }
+  }
+
+  loadStudents();
+  </script>
+</body>
+</html>
